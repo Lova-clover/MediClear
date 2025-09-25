@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>내 의료 정보 | MediClear</title>
+    <link rel="stylesheet" href="https://spoqa.github.io/spoqa-han-sans/css/SpoqaHanSansNeo.css">
+    <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="viewport">
+    <div class="app">
+        <header class="app-header">
+            <h1 class="app-title">내 의료 정보</h1>
+            <div class="app-actions">
+                <button id="logout" class="btn-plain">로그아웃</button>
+            </div>
+        </header>
+
+        <main class="container">
+            <section class="card profile-card">
+                <div class="badge">환자</div>
+                <h2 class="profile-title">내 프로필</h2>
+                <div class="meta"><strong>이메일:</strong> <span id="profile-email"></span></div>
+            </section>
+
+            <div class="tabs" id="tabs">
+                <button class="tab-btn active" data-tab="records">📢 진단</button>
+                <button class="tab-btn" data-tab="schedules">🗓 일정</button>
+                <button class="tab-btn" data-tab="notes">📝 메모</button>
+            </div>
+
+            <div data-page="records" class="tab-content active">
+                <section class="card">
+                    <h2>의사 진단 확인</h2>
+                    <ul id="records-list" class="list"></ul>
+                </section>
+            </div>
+
+            <div data-page="schedules" class="tab-content">
+                <section class="card">
+                    <h2>💊 복약</h2>
+                    <ul id="medication-list" class="list"></ul>
+                </section>
+                <section class="card">
+                    <h2>🧪 검사</h2>
+                    <ul id="test-list" class="list"></ul>
+                </section>
+                <section class="card">
+                    <h2>🏥 수술</h2>
+                    <ul id="surgery-list" class="list"></ul>
+                </section>
+            </div>
+
+            <div data-page="notes" class="tab-content">
+                <section class="card">
+                    <h2>내 건강 메모</h2>
+                    <form id="note-form" class="add-form">
+                        <textarea id="note-content" placeholder="증상, 궁금한 점을 기록하세요." required></textarea>
+                        <button class="btn block" type="submit">메모 저장</button>
+                    </form>
+                    <ul id="notes-list" class="list" style="margin-top:12px;"></ul>
+                </section>
+            </div>
+        </main>
+    </div>
+</div>
+
+  <script type="module">
+    import { AppUX } from './app.js';
+    const $ = id => document.getElementById(id);
+
+    // ---- 토큰/역할 ----
+    const token = localStorage.getItem('token') || '';
+    const role  = localStorage.getItem('role')  || '';
+    const email = localStorage.getItem('email') || '';
+    if(!token || role!=='patient'){ location.replace('login.html'); }
+    $('logout').addEventListener('click', AppUX.logout);
+    $('profile-email').textContent = email || '알 수 없음';
+
+    // ---- fetch ----
+    async function fetchJSON(url, options={}){
+      const res = await fetch(url, { headers:{ 'Accept':'application/json', Authorization:'Bearer '+token, ...(options.headers||{}) }, ...options });
+      const raw = await res.text(); let data={}; try{ data = raw?JSON.parse(raw):{} }catch{ throw new Error(`서버 응답 형식 오류 (${res.status})`); }
+      if(!res.ok) throw new Error(data.error||`요청 실패 (${res.status})`); return data;
+    }
+
+    // ---- 상단 탭 전환(보이기/숨기기) ----
+    function activate(tab){
+      document.querySelectorAll('[data-page]').forEach(el=> el.style.display = (el.dataset.page===tab)?'block':'none');
+      document.querySelectorAll('.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
+      AppUX.vibrate(6);
+    }
+    document.getElementById('tabs').addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-tab]'); if(!btn) return; activate(btn.dataset.tab);
+    });
+
+    // ---- 서버 데이터 ----
+    async function loadRecords(){
+      try{
+        const r = await fetchJSON('/api/patient/records');
+        $('records-list').innerHTML = (r.records||[]).length
+          ? r.records.map(x=>`
+              <li>
+                <div class="meta">${x.date}</div>
+                <div style="white-space:pre-line"><b>원문</b>\n${(x.raw||'').trim()}</div>
+                ${x.simplified ? `<div class="summary">${x.simplified}</div>` : ''}
+              </li>`).join('')
+          : '<li class="meta">진단 내용이 없습니다.</li>';
+      }catch(e){ $('records-list').innerHTML = `<li class="meta">진단 로드 실패: ${e.message}</li>`; }
+    }
+    async function loadSchedules(){
+      try{
+        const s = await fetchJSON('/api/patient/schedules');
+        // 복약
+        document.getElementById('medication-list').innerHTML = (s.medications||[]).length
+          ? s.medications.map(m=>`<li>${m.time} · <strong>${m.name}</strong></li>`).join('')
+          : '<li class="meta">복약 일정 없음</li>';
+        // 검사
+        document.getElementById('test-list').innerHTML = (s.tests||[]).length
+          ? s.tests.map(t=>`<li>${t.date} · <strong>${t.name}</strong></li>`).join('')
+          : '<li class="meta">검사 일정 없음</li>';
+        // 🆕 수술
+        const surgEl = document.getElementById('surgery-list');
+        if (surgEl){
+          surgEl.innerHTML = (s.surgeries||[]).length
+            ? s.surgeries.map(x=>`<li>${x.date} · <strong>${x.title}</strong></li>`).join('')
+            : '<li class="meta">수술 일정 없음</li>';
+        }
+      }catch(e){
+        document.getElementById('medication-list').innerHTML = `<li class="meta">복약 로드 실패: ${e.message}</li>`;
+        document.getElementById('test-list').innerHTML       = `<li class="meta">검사 로드 실패: ${e.message}</li>`;
+        const surgEl = document.getElementById('surgery-list');
+        if (surgEl) surgEl.innerHTML = `<li class="meta">수술 로드 실패: ${e.message}</li>`;
+      }
+    }
+
+
+    // ---- 로컬 메모 (사용자별 키로 유지) ----
+    const NOTES_KEY = email ? `mediclear_notes_${email}` : 'mediclear_notes';
+    try{
+      const legacy = localStorage.getItem('mediclear_notes');
+      if(legacy && !localStorage.getItem(NOTES_KEY)){ localStorage.setItem(NOTES_KEY, legacy); localStorage.removeItem('mediclear_notes'); }
+    }catch{}
+    function readNotes(){ try{ return JSON.parse(localStorage.getItem(NOTES_KEY)||'[]'); }catch{ return []; } }
+    function writeNotes(list){ localStorage.setItem(NOTES_KEY, JSON.stringify(list)); }
+    function renderNotes(){
+      const list = readNotes();
+      $('notes-list').innerHTML = list.length ? list.map(n=>`
+        <li data-id="${n.id}">
+          <div class="meta">${n.ts}</div>
+          <div style="margin:6px 0; white-space:pre-line">${n.content}</div>
+          <div class="field-row" style="margin-top:6px;">
+            <button class="btn sm" data-action="edit">수정</button>
+            <button class="btn sm danger" data-action="delete">삭제</button>
+          </div>
+          <div class="card" style="margin-top:8px; display:none;" data-box="edit">
+            <textarea rows="3">${n.content}</textarea>
+            <div class="field-row" style="margin-top:8px;">
+              <button class="btn sm" data-action="save">저장</button>
+              <button class="btn sm ghost" data-action="cancel">취소</button>
+            </div>
+          </div>
+        </li>`).join('') : '<li class="meta" style="text-align:center;">첫 메모를 작성해 보세요!</li>';
+    }
+    document.getElementById('note-form').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const content = document.getElementById('note-content').value.trim();
+      if(!content) return AppUX.toast('메모 내용을 입력하세요');
+      const list = readNotes();
+      list.unshift({ id: Date.now().toString(36), ts: new Date().toLocaleString(), content });
+      writeNotes(list);
+      document.getElementById('note-content').value='';
+      renderNotes();
+      AppUX.toast('메모 저장됨');
+    });
+    document.getElementById('notes-list').addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-action]'); if(!btn) return;
+      const li = btn.closest('li'), id = li.dataset.id;
+      const list = readNotes();
+      const idx = list.findIndex(x=>x.id===id);
+      const editBox = li.querySelector('[data-box="edit"]');
+      if(idx<0) return;
+      if(btn.dataset.action==='delete'){
+        AppUX.openSheet(`
+        <div style="
+          max-width:420px;   /* 앱 카드 최대 폭 제한 */
+          margin:0 auto;     /* 가운데 정렬 */
+          text-align:center;
+        ">
+          <h3 style="margin:0 0 12px; font-size:16px;">메모를 삭제할까요?</h3>
+          <div style="display:flex; justify-content:center; gap:12px; margin-top:8px;">
+            <button id="do-del" class="btn danger sm" style="width:auto; padding:6px 14px;">삭제</button>
+            <button id="cancel-del" class="btn ghost sm" style="width:auto; padding:6px 14px;">취소</button>
+          </div>
+        </div>
+      `);
+
+        document.getElementById('do-del').onclick = ()=>{ list.splice(idx,1); writeNotes(list); renderNotes(); AppUX.closeSheet(); AppUX.toast('삭제됨'); };
+        document.getElementById('cancel-del').onclick = AppUX.closeSheet;
+      }
+      if(btn.dataset.action==='edit'){ editBox.style.display = editBox.style.display==='none' ? 'block' : 'none'; }
+      if(btn.dataset.action==='cancel'){ editBox.style.display='none'; }
+      if(btn.dataset.action==='save'){
+        const val = editBox.querySelector('textarea').value.trim();
+        if(!val) return AppUX.toast('내용을 입력하세요');
+        list[idx].content = val; writeNotes(list); renderNotes(); AppUX.toast('저장됨');
+      }
+    });
+
+    // 초기 로드
+    activate('records');
+    await Promise.all([loadRecords(), loadSchedules()]);
+    renderNotes();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', ()=>navigator.serviceWorker.register('./service-worker.js'));
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>수술 안내 | MediClear</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="viewport">
+    <div class="app">
+      <header class="app-header"><h1 class="app-title">수술 안내</h1></header>
+
+      <main class="container">
+        <section class="card">
+          <h2 id="title">수술명</h2>
+          <p><strong>수술일:</strong> <span id="date"></span></p>
+        </section>
+
+        <section class="card">
+          <h2>👨‍⚕️ 의사 원문</h2>
+          <div id="raw"></div>
+        </section>
+
+        <section class="card">
+          <h2>🧾 이해하기 쉬운 설명</h2>
+          <div id="easy"></div>
+        </section>
+
+        <section class="card">
+          <h2>📌 해야 할 일 체크리스트</h2>
+          <ul id="checklist"></ul>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+  const $ = (id)=>document.getElementById(id);
+  function param(n){ return new URL(location.href).searchParams.get(n); }
+  if ('serviceWorker' in navigator) { window.addEventListener('load', ()=>navigator.serviceWorker.register('./service-worker.js')); }
+
+  async function fetchJSON(url, options={}){
+    const res = await fetch(url, { headers:{'Accept':'application/json', ...(options.headers||{})}, ...options });
+    const raw = await res.text(); let data={}; try{ data = raw ? JSON.parse(raw) : {}; }catch{ throw new Error(`서버 응답 형식 오류 (${res.status})`); }
+    if(!res.ok) throw new Error(data.error||`요청 실패 (${res.status})`); return data;
+  }
+
+  (async function(){
+    const token = localStorage.getItem('token');
+    const role  = localStorage.getItem('role');
+    if(!token || role!=='patient'){ location.href='login.html'; return; }
+    const id = param('id'); if(!id){ alert('잘못된 접근'); location.href='mypage.html'; return; }
+
+    try{
+      const { surgery:s } = await fetchJSON('/api/surgery/'+encodeURIComponent(id), { headers:{ Authorization:'Bearer '+token }});
+      $('title').textContent = s.title; $('date').textContent = s.date;
+      $('raw').textContent   = s.raw;   $('easy').innerHTML = s.simplified.replace(/\n/g,'<br>');
+
+      const list=[]; const T = s.simplified || '';
+      if(/금식/i.test(T)) list.push('수술/검사 전 금식 지키기');
+      if(/혈압.*재/i.test(T)) list.push('집에서 혈압 재기');
+      if(/하루 두 번|1일 2회/i.test(T)) list.push('아침/저녁 약 복용');
+      if(!list.length) list.push('의료진 지시 따르기');
+      $('checklist').innerHTML = list.map(x=>`<li>${x}</li>`).join('');
+    }catch(e){ alert(e.message); location.href='mypage.html'; }
+  })();
+  </script>
+</body>
+</html>

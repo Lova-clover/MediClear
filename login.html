@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>로그인 | MediClear</title>
+    <link rel="stylesheet" href="https://spoqa.github.io/spoqa-han-sans/css/SpoqaHanSansNeo.css">
+    <link rel="stylesheet" href="style.css"/>
+</head>
+<body class="auth-page">
+<div class="viewport">
+    <main class="container">
+        <div class="login-card auth-card">
+            <h1 class="app-title">로그인</h1>
+            <form id="login-form">
+                <input id="login-email" type="email" placeholder="이메일" inputmode="email" autocomplete="username" required/>
+                <input id="login-pass" type="password" placeholder="비밀번호" autocomplete="current-password" required/>
+                <button class="btn primary block" type="submit">로그인</button>
+            </form>
+            <div class="social-login">
+                <p class="helper-text">또는 소셜 계정으로 로그인</p>
+                <div class="social-buttons">
+                    <button class="btn social-btn"><img src="google.png" alt="Google" width="24" height="24"> 구글</button>
+                    <button class="btn social-btn"><img src="kakao.png" alt="Kakao" width="24" height="24"> 카카오</button>
+                </div>
+            </div>
+            <p class="helper-text" style="margin-top:20px;">계정이 없으신가요? <a href="register.html">회원가입</a></p>
+            <div id="login-message" class="helper-text error-message"></div>
+        </div>
+    </main>
+</div>
+
+<script type="module">
+    async function fetchJSON(url, options = {}) {
+        const res = await fetch(url, {
+            headers: {'Accept': 'application/json', ...(options.headers || {})},
+            ...options
+        });
+        const raw = await res.text();
+        let data = {};
+        try {
+            data = raw ? JSON.parse(raw) : {}
+        } catch {
+            throw new Error(`서버 응답 형식 오류 (${res.status})`);
+        }
+        if (!res.ok) throw new Error(data.error || `요청 실패 (${res.status})`);
+        return data;
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-pass').value.trim();
+        const msg = document.getElementById('login-message');
+        msg.textContent = '';
+        try {
+            const data = await fetchJSON('/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email, password})
+            });
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('role', data.role);
+            localStorage.setItem('email', data.email);
+            if (data.role === 'doctor') location.replace('doctor.html'); else location.replace('mypage.html');
+        } catch (err) {
+            msg.textContent = err.message;
+        }
+    });
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
+    }
+</script>
+</body>
+</html>

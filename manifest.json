@@ -1,0 +1,19 @@
+{
+  "name": "MediClear",
+  "short_name": "MediClear",
+  "description": "의료 지시를 환자 행동으로 바꾸는 모바일 앱",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#007BFF",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "shortcuts": [
+    { "name": "내 의료", "short_name": "내 의료", "url": "/mypage.html" },
+    { "name": "의사 대시보드", "short_name": "의사", "url": "/docter.html" }
+  ]
+}

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <title>의사 대시보드 | MediClear</title>
+    <link rel="stylesheet" href="https://spoqa.github.io/spoqa-han-sans/css/SpoqaHanSansNeo.css">
+    <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="viewport">
+    <div class="app">
+        <header class="app-header">
+            <h1 class="app-title">의사 대시보드</h1>
+            <div class="app-actions">
+                <button id="logout" class="btn-plain">로그아웃</button>
+            </div>
+        </header>
+
+        <main class="container">
+            <div class="tabs" id="tabs">
+                <button class="tab-btn active" data-tab="order">🩺 진단</button>
+                <button class="tab-btn" data-tab="surgery">🏥 수술</button>
+                <button class="tab-btn" data-tab="schedule">🕒 일정</button>
+            </div>
+
+            <div data-page="order" class="tab-content active">
+                <section class="card">
+                    <h2>환자 진단 등록</h2>
+                    <form id="doctor-form" class="add-form">
+                        <input type="email" id="patient-email" placeholder="환자 이메일" required inputmode="email"/>
+                        <textarea id="instruction" placeholder="원문 진단/지시를 입력하세요" required></textarea>
+                        <button class="btn block" type="submit">진단 등록</button>
+                    </form>
+                </section>
+                <section class="card">
+                    <h2>진단 기록 조회</h2>
+                    <div class="field-row">
+                        <input type="email" id="filter-patient" placeholder="환자 이메일(선택)"/>
+                        <button id="refresh" class="btn sm ghost" type="button">새로고침</button>
+                    </div>
+                    <ul id="doctor-records" class="list" style="margin-top:12px;"></ul>
+                </section>
+            </div>
+
+            <div data-page="surgery" class="tab-content">
+                <section class="card">
+                    <h2>수술 등록</h2>
+                    <form id="surgery-form" class="add-form">
+                        <input type="email" id="surg-patient" placeholder="환자 이메일" required inputmode="email"/>
+                        <input type="text"  id="surg-title"   placeholder="수술명 (예: 백내장)" required/>
+                        <input type="date"  id="surg-date"    required/>
+                        <textarea id="surg-notes" placeholder="수술/전후 지시 메모 (원문)"></textarea>
+                        <button class="btn block" type="submit">수술 등록</button>
+                    </form>
+                </section>
+                <section class="card">
+                    <h2>수술 기록 조회</h2>
+                    <div class="field-row">
+                        <input type="email" id="filter-patient2" placeholder="환자 이메일(선택)"/>
+                        <button id="refresh2" class="btn sm ghost" type="button">새로고침</button>
+                    </div>
+                    <ul id="surgery-list" class="list" style="margin-top:12px;"></ul>
+                </section>
+            </div>
+
+            <div data-page="schedule" class="tab-content">
+                <section class="card">
+                    <h2>일정 등록</h2>
+                    <details class="acc" open>
+                        <summary>💊 복약 추가</summary>
+                        <div class="acc-body">
+                            <form id="med-form" class="add-form">
+                                <input id="med-email" type="email" placeholder="환자 이메일" required>
+                                <input id="med-name"  type="text"  placeholder="약 이름" required>
+                                <input id="med-time" type="datetime-local" required>
+                                <button class="btn block" type="submit">복약 추가</button>
+                            </form>
+                        </div>
+                    </details>
+                    <details class="acc">
+                        <summary>🧪 검사 추가</summary>
+                        <div class="acc-body">
+                            <form id="test-form" class="add-form">
+                                <input id="test-email" type="email" placeholder="환자 이메일" required>
+                                <input id="test-name"  type="text"  placeholder="검사명" required>
+                                <input id="test-date" type="date" required>
+                                <button class="btn block" type="submit">검사 추가</button>
+                            </form>
+                        </div>
+                    </details>
+                </section>
+                <section class="card">
+                    <h2>환자 일정 조회</h2>
+                     <div class="field-row">
+                        <input id="sched-patient" type="email" placeholder="환자 이메일 입력">
+                        <button id="load-patient-schedules" class="btn sm" type="button">조회</button>
+                    </div>
+
+                    <h3 class="list-title">복약 목록</h3>
+                    <ul id="med-list-admin" class="list"></ul>
+                    <h3 class="list-title">검사 목록</h3>
+                    <ul id="test-list-admin" class="list"></ul>
+                    <h3 class="list-title">수술 목록</h3>
+                    <ul id="surgery-list-admin" class="list"></ul>
+                </section>
+            </div>
+        </main>
+    </div>
+</div>
+
+  <script type="module">
+    import { AppUX } from './app.js';
+    const $ = id=>document.getElementById(id);
+
+    const token = localStorage.getItem('token') || '';
+    const role  = localStorage.getItem('role')  || '';
+    if (!token || !(role==='doctor' || role==='admin')) {
+      localStorage.removeItem('token'); location.replace('login.html');
+    }
+    $('logout').addEventListener('click', AppUX.logout);
+
+    async function fetchJSON(url, options={}){
+      const res = await fetch(url, { ...options, headers:{ 'Accept':'application/json','Authorization':'Bearer '+token, ...(options.headers||{}) } });
+      const txt = await res.text(); let data={}; try{ data = txt?JSON.parse(txt):{} }catch{}
+      if(!res.ok){
+        const code = data?.error||'';
+        if(res.status===401 || code==='NO_TOKEN' || code==='INVALID_TOKEN'){ localStorage.removeItem('token'); location.replace('login.html'); }
+        throw new Error(code || `요청 실패 (${res.status})`);
+      }
+      return data;
+    }
+
+    function activate(tab){
+      document.querySelectorAll('[data-page]').forEach(el=> el.style.display = (el.dataset.page===tab)?'block':'none');
+      document.querySelectorAll('.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
+      AppUX.vibrate(6);
+    }
+    document.getElementById('tabs').addEventListener('click', (e)=>{
+      const btn = e.target.closest('button[data-tab]'); if(!btn) return; activate(btn.dataset.tab);
+    });
+
+    // ---- 진단 ----
+    $('doctor-form').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const email = $('patient-email').value.trim();
+      const instruction = $('instruction').value.trim();
+      if(!email || !instruction) return AppUX.toast('모든 항목을 입력하세요');
+      try{
+        AppUX.loading(true);
+        await fetchJSON('/api/doctor', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, instruction }) });
+        AppUX.toast('진단 등록 성공'); $('instruction').value=''; loadDoctorRecords(); activate('order');
+      }catch(err){ AppUX.toast('등록 실패: '+err.message); }
+      finally{ AppUX.loading(false); }
+    });
+    async function loadDoctorRecords(){
+      const email = $('filter-patient').value?.trim();
+      try{
+        const data = await fetchJSON('/api/doctor/records' + (email ? `?patient=${encodeURIComponent(email)}` : ''));
+        const ul = $('doctor-records');
+        ul.innerHTML = (data.records||[]).length ? '' : '<li class="meta">진단 기록이 없습니다.</li>';
+        (data.records||[]).forEach(r=>{
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <div class="meta">${(r.ts||'').slice(0,16).replace('T',' ')} · <b>${r.patient_email||''}</b></div>
+            <div style="margin-top:4px;white-space:pre-line;color:#334155;"><b>원문</b>\n${r.raw||''}</div>
+            ${r.simplified ? `<div class="summary">${r.simplified}</div>` : ''}
+          `;
+          ul.appendChild(li);
+        });
+      }catch(err){ AppUX.toast('진단 불러오기 실패: '+err.message); }
+    }
+    $('refresh').addEventListener('click', loadDoctorRecords);
+
+    // ---- 수술 ----
+    $('surgery-form').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const email = $('surg-patient').value.trim();
+      const title = $('surg-title').value.trim();
+      const date  = $('surg-date').value;
+      const notes = $('surg-notes').value.trim();
+      if(!email || !title || !date) return AppUX.toast('필수 항목을 입력하세요');
+      try{
+        AppUX.loading(true);
+        await fetchJSON('/api/doctor/surgery', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, title, date, notes }) });
+        AppUX.toast('수술 등록 완료');
+        ['surg-title','surg-date','surg-notes'].forEach(id=>document.getElementById(id).value='');
+        loadSurgeries();
+        // 🆕 일정 화면도 즉시 반영
+        if($('sched-patient').value.trim()===email) await loadSchedulesFor(email);
+        activate('surgery');
+      }catch(err){ AppUX.toast('등록 실패: '+err.message); }
+      finally{ AppUX.loading(false); }
+    });
+    async function loadSurgeries(){
+      const email = $('filter-patient2').value?.trim();
+      try{
+        const data = await fetchJSON('/api/doctor/surgeries' + (email ? `?patient=${encodeURIComponent(email)}` : ''));
+        const ul = $('surgery-list');
+        ul.innerHTML = (data.surgeries||[]).length ? '' : '<li class="meta">수술 기록이 없습니다.</li>';
+        (data.surgeries||[]).forEach(s=>{
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <div><b>${s.patient_email}</b> · ${s.date} · <strong>${s.title}</strong></div>
+            ${s.notes ? `<div class="meta" style="white-space:pre-line">${s.notes}</div>`:''}
+            ${s.simplified ? `<div class="summary">${s.simplified}</div>` : ''}
+          `;
+          ul.appendChild(li);
+        });
+      }catch(err){ AppUX.toast('수술 불러오기 실패: '+err.message); }
+    }
+    $('refresh2').addEventListener('click', loadSurgeries);
+
+    // ---- 일정 등록/조회 ----
+    $('med-form').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const email = $('med-email').value.trim();
+      const name  = $('med-name').value.trim();
+      const time  = $('med-time').value;
+      if(!email || !name || !time) return AppUX.toast('필수 항목을 입력하세요');
+      try{
+        AppUX.loading(true);
+        await fetchJSON('/api/doctor/medication', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, name, time }) });
+        e.target.reset(); AppUX.toast('복약 일정 등록');
+        if($('sched-patient').value.trim()===email) await loadSchedulesFor(email);
+        activate('schedule');
+      }catch(err){ AppUX.toast('복약 등록 실패: '+err.message); }
+      finally{ AppUX.loading(false); }
+    });
+    $('test-form').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const email = $('test-email').value.trim();
+      const name  = $('test-name').value.trim();
+      const date  = $('test-date').value;
+      if(!email || !name || !date) return AppUX.toast('필수 항목을 입력하세요');
+      try{
+        AppUX.loading(true);
+        await fetchJSON('/api/doctor/test', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, name, date }) });
+        e.target.reset(); AppUX.toast('검사 일정 등록');
+        if($('sched-patient').value.trim()===email) await loadSchedulesFor(email);
+        activate('schedule');
+      }catch(err){ AppUX.toast('검사 등록 실패: '+err.message); }
+      finally{ AppUX.loading(false); }
+    });
+
+    async function loadSchedulesFor(email) {
+        try {
+            const data = await fetchJSON('/api/doctor/schedules?patient=' + encodeURIComponent(email));
+            
+            $('med-list-admin').innerHTML = (data.medications || []).length ?
+                data.medications.map(m => `
+                    <li data-id="${m.id}" data-type="med">
+                        <div>
+                            <span><div class="meta">${m.time}</div><strong>${m.name}</strong></span>
+                            <span class="list-item-actions">
+                                <button class="btn sm ghost" data-action="edit">수정</button>
+                                <button class="btn sm danger" data-action="delete">삭제</button>
+                            </span>
+                        </div>
+                    </li>`).join('') :
+                '<li class="meta">복약 없음</li>';
+
+            $('test-list-admin').innerHTML = (data.tests || []).length ?
+                data.tests.map(t => `
+                    <li data-id="${t.id}" data-type="test">
+                        <div>
+                           <span><div class="meta">${t.date}</div><strong>${t.name}</strong></span>
+                           <span class="list-item-actions">
+                                <button class="btn sm ghost" data-action="edit">수정</button>
+                                <button class="btn sm danger" data-action="delete">삭제</button>
+                            </span>
+                        </div>
+                    </li>`).join('') :
+                '<li class="meta">검사 없음</li>';
+            
+            $('surgery-list-admin').innerHTML = (data.surgeries || []).length ?
+                data.surgeries.map(s => `<li><div class="meta">${s.date}</div><div><strong>${s.title}</strong></div></li>`).join('') :
+                '<li class="meta">수술 없음</li>';
+
+        } catch (err) { AppUX.toast('일정 불러오기 실패: ' + err.message); }
+    }
+
+    $('load-patient-schedules').addEventListener('click', () => {
+        const email = $('sched-patient').value.trim();
+        if (!email) return AppUX.toast('환자 이메일을 입력하세요');
+        loadSchedulesFor(email);
+    });
+    
+    // ---- 일정 수정/삭제 이벤트 핸들러 ----
+    async function handleScheduleAction(e) {
+        const button = e.target.closest('button[data-action]');
+        if (!button) return;
+
+        const li = button.closest('li');
+        const id = li.dataset.id;
+        const type = li.dataset.type; // 'med' or 'test'
+        const action = button.dataset.action;
+        const patientEmail = $('sched-patient').value.trim();
+
+        if (action === 'delete') {
+            if (confirm('정말로 이 일정을 삭제하시겠습니까?')) {
+                try {
+                    await fetchJSON(`/api/doctor/${type === 'med' ? 'medication' : 'test'}/${id}`, { method: 'DELETE' });
+                    AppUX.toast('삭제되었습니다.');
+                    loadSchedulesFor(patientEmail);
+                } catch (err) {
+                    AppUX.toast('삭제 실패: ' + err.message);
+                }
+            }
+        } else if (action === 'edit') {
+            if (type === 'med') {
+                const newName = prompt('새 약 이름을 입력하세요:', li.querySelector('strong').textContent);
+                const newTime = prompt('새 복약 시간을 입력하세요 (YYYY-MM-DDTHH:MM):', li.querySelector('.meta').textContent);
+                if (newName && newTime) {
+                    try {
+                        await fetchJSON(`/api/doctor/medication/${id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: newName, time: newTime })
+                        });
+                        AppUX.toast('수정되었습니다.');
+                        loadSchedulesFor(patientEmail);
+                    } catch (err) {
+                        AppUX.toast('수정 실패: ' + err.message);
+                    }
+                }
+            } else if (type === 'test') {
+                const newName = prompt('새 검사명을 입력하세요:', li.querySelector('strong').textContent);
+                const newDate = prompt('새 검사 날짜를 입력하세요 (YYYY-MM-DD):', li.querySelector('.meta').textContent);
+                 if (newName && newDate) {
+                    try {
+                        await fetchJSON(`/api/doctor/test/${id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: newName, date: newDate })
+                        });
+                        AppUX.toast('수정되었습니다.');
+                        loadSchedulesFor(patientEmail);
+                    } catch (err) {
+                        AppUX.toast('수정 실패: ' + err.message);
+                    }
+                }
+            }
+        }
+    }
+
+    $('med-list-admin').addEventListener('click', handleScheduleAction);
+    $('test-list-admin').addEventListener('click', handleScheduleAction);
+
+
+    // 초기 로드
+    activate('order');
+    loadDoctorRecords();
+    loadSurgeries();
+</script>
+</body>
+</html>
