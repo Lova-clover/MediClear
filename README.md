@@ -71,27 +71,20 @@ MediClear/
 ---
 
 ## 🔌 OpenAI 연동
-- 서버는 환경변수 **`OPENAI_API_KEY`**만 있으면 LLM 호출 준비 완료  
+- 서버는 환경변수 `OPENAI_API_KEY`만 있으면 LLM 호출 준비 완료  
 - 추가 설정 없이 **키만 넣으면 동작**  
 - (선택) `MODEL`로 모델 변경 가능
 
 ---
 
-## 📎 발표자료 / 데모 영상 첨부
-리포에 직접 포함하려면 `assets/` 폴더를 만들고 파일을 넣은 뒤, 아래처럼 README에서 참조하세요.
+## 📎 발표자료 / 데모 영상
 
 - 발표자료(PPT): [MediClear.pptx](assets/MediClear.pptx)
 - 데모 영상(MP4): [demo.mp4](assets/demo.mp4)
 
 ---
 
-## 🔒 프로덕션 전 점검
-- **HTTPS**, **입력 검증**, **인증/인가(RBAC)**, **비밀번호 해시/솔트**, **로그/감사**,  **민감정보 최소 수집·암호화** 등 보안 항목을 반드시 강화하세요.  
-- `instructions.json` 등 샘플은 **데모용**입니다.
-
----
-
-## 🏗️ 간단 아키텍처
+## 🏗️ 구조
 ```
 [Client: HTML/CSS/JS + PWA]
   ├─ UI 렌더링 (index/doctor/surgery/login/register/mypage.html)
